@@ -3,6 +3,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 const express = require('express');
 const patientRoutes = require('./routes/patients');
+const userRoutes = require('./routes/users');
 const db = require('./models');
 
 const PORT = process.env.PORT || 500;
@@ -15,13 +16,13 @@ app.get('/', (req, res) => {
 });
 
 app.use('/patients', patientRoutes);
-
+app.use('/users', userRoutes);
 
 app.listen(PORT, async (err) => {
     if (err) console.log(`Error occured in listening on port ${PORT}`)
     else {
         console.log(`Server running on http://localhost:${PORT}`);
-        await db.sequelize.sync();
+        await db.sequelize.sync({ alter: true });
         console.log('Database synced!...');
     }
 });
