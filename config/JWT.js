@@ -15,7 +15,7 @@ function generateToken(req, res, next) {
     const email = req.body.email;
     try {
         const data = { userId: email };
-        const token = jwt.sign(data, jwtSecretKey);
+        const token = jwt.sign(data, jwtSecretKey, { expiresIn: '1h'});
         return res.status(200).json(token);
     } catch (err) {
         return res.status(500).json(err);
