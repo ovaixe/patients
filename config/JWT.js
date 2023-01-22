@@ -31,6 +31,6 @@ function validateToken(req, res, next) {
             return next();
         } else return res.status(401).json('Access Denied!');
     } catch (err) {
-        return res.status(401).json('Access Denied!' + err);
+        return res.status(401).json('Access Denied!: ' + err);
     }
 }

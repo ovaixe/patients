@@ -1,8 +1,9 @@
 const { Op } = require('sequelize');
 const { Patient } = require('../models');
-const { redisClientHandler } = require('../config');
+const { redisClientHandler, sqsHandler } = require('../config');
 
 const { redisClient, DEFAULT_EXPIRATION } = redisClientHandler;
+const { publish, consume } = sqsHandler;
 
 const patientController = {
     getAll,
@@ -99,6 +100,7 @@ async function updateById(req, res, next) {
             patient = await patient.save();
             const cachePatient = await redisClient.get(JSON.stringify(id));
             if (cachePatient) await redisClient.setEx(JSON.stringify(id), DEFAULT_EXPIRATION, JSON.stringify(patient));
+            publish('Database updated: ID -> ' + id);
             return res.status(200).json(patient);
         } else {
             return res.status(404).json('No patient found!');
