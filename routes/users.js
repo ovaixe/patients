@@ -10,5 +10,8 @@ const router = express.Router();
 // This is endpoint to register a user.
 router.post('/register', register, generateToken);
 
+// This is endpoint to generate token.
+router.post('/get-token', generateToken)
+
 
 module.exports = router;

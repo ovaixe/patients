@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { User } = require('../models');
 
 const jwtSecretKey = process.env.JWT_SECRET_KEY;
 const tokenHeaderKey = process.env.TOKEN_HEADER_KEY;
@@ -11,12 +12,17 @@ const jwtHandler = {
 module.exports = jwtHandler;
 
 
-function generateToken(req, res, next) {
+async function generateToken(req, res, next) {
     const email = req.body.email;
     try {
-        const data = { userId: email };
-        const token = jwt.sign(data, jwtSecretKey, { expiresIn: '1h'});
-        return res.status(200).json(token);
+        const user = await User.findByPk(email);
+        if (user) {
+            const data = { userId: email, date: Date.now() };
+            const token = jwt.sign(data, jwtSecretKey, { expiresIn: '1h'});
+            return res.status(200).json(token);
+        } else {
+            return res.status(404).json('No user found with this email!');
+        }
     } catch (err) {
         return res.status(500).json(err);
     }
