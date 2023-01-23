@@ -1,9 +1,9 @@
 const { Op } = require('sequelize');
 const { Patient } = require('../models');
-const { redisClientHandler, sqsHandler } = require('../config');
+const { redisHelper, sqsHelper } = require('../helpers');
 
-const { redisClient, DEFAULT_EXPIRATION } = redisClientHandler;
-const { publish, consume } = sqsHandler;
+const { getCacheData, setCacheData } = redisHelper;
+const { publish, consume } = sqsHelper;
 
 const patientController = {
     getAll,
@@ -18,16 +18,8 @@ module.exports = patientController;
 
 async function getAll(req, res, next) {
     try {
-        // const cachePatients = await redisClient.get('patients');
-        // if (cachePatients) {
-        //     console.log('Redis HIT...');
-        //     return res.status(200).json(JSON.parse(cachePatients));
-        // } else {
-            // console.log('Redis MISS...');
-            const patients = await Patient.findAll();
-            await redisClient.setEx('patients', DEFAULT_EXPIRATION, JSON.stringify(patients));
-            return res.status(200).json(patients);
-        // }
+        const patients = await Patient.findAll();
+        return res.status(200).json(patients);
     } catch (err) {
         return res.status(500).json('There is some internal error: ' + err);
     }
@@ -36,18 +28,23 @@ async function getAll(req, res, next) {
 async function getById(req, res, next) {
     const id = parseInt(req.params.id);
     try {
-        const cachePatient = await redisClient.get(JSON.stringify(id));
-        if (cachePatient) {
-            console.log('Redis HIT...');
-            return res.status(200).json(JSON.parse(cachePatient));
-        } else {
-            console.log('Redis MISS...');
-            const patient = await Patient.findOne({ where: { id } });
+        const cachePatient = getCacheData(id);
+        cachePatient.then(async (patient) => {
             if (patient) {
-                await redisClient.setEx(JSON.stringify(id), DEFAULT_EXPIRATION, JSON.stringify(patient));
-                return res.status(200).json(patient);
-            } else return res.status(404).json('No patient found!');
-        }
+                console.log('Redis HIT...');
+                return res.status(200).json(JSON.parse(patient));
+            } else {
+                console.log('Redis MISS...');
+                const patient = await Patient.findOne({ where: { id } });
+                if (patient) {
+                    setCacheData(id, patient);
+                    return res.status(200).json(patient);
+                } else return res.status(404).json('No patient found!');
+                }
+        }).catch((err) => {
+            console.log("Some error in redis..." + err);
+            return res.status(500).json('There is some internal error: ' + err)
+        })
     } catch (err) {
         return res.status(500).json('There is some internal error: ' + err);
     }
@@ -56,26 +53,18 @@ async function getById(req, res, next) {
 async function getByWalletAmount(req, res, next) {
     const amount = parseInt(req.params.amount);
     try {
-        // const cachePatients = await redisClient.get('patientsWithAmount:' + amount);
-        // if (cachePatients) {
-        //     console.log('Redis HIT...');
-        //     return res.status(200).json(JSON.parse(cachePatients));
-        // } else {
-        //     console.log('Redis MISS...');
-            const patients = await Patient.findAll({
-                where: { 
-                    walletAmount: {
-                        [Op.gt]: amount
-                    }
+        const patients = await Patient.findAll({
+            where: { 
+                walletAmount: {
+                    [Op.gt]: amount
                 }
-            });
-            if (patients.lenght !== 0) {
-                // await redisClient.setEx('patientsWithAmount:' + amount, DEFAULT_EXPIRATION, JSON.stringify(patients));
-                return res.status(200).json(patients);
-            } else return res.status(404).json('No patient with wallet amount greater than given amount!');
-        // }
+            }
+        });
+        if (patients.length) {
+            return res.status(200).json(patients);
+        } else return res.status(404).json('No patient with wallet amount greater than given amount!');
     } catch (err) {
-        return res.status(500).json(err);
+        return res.status(500).json('There is some internal error: ' + err);
     }
     
 }
@@ -86,7 +75,7 @@ async function create(req, res, next) {
         const patient = await Patient.create(body);
         return res.status(200).json(patient);
     } catch (err) {
-        return res.status(500).json(err);
+        return res.status(500).json('There is some internal error: ' + err);
     }
 }
 
@@ -98,9 +87,13 @@ async function updateById(req, res, next) {
         if (patient) {
             patient.set(body);
             patient = await patient.save();
-            const cachePatient = await redisClient.get(JSON.stringify(id));
-            if (cachePatient) await redisClient.setEx(JSON.stringify(id), DEFAULT_EXPIRATION, JSON.stringify(patient));
-            publish('Database updated: ID -> ' + id);
+            const cachePatient = getCacheData(id);
+            if (cachePatient) setCacheData(id, patient);
+            const message = {
+                msg: 'Database Updated.',
+                updatedData: patient
+            }
+            publish(message);
             return res.status(200).json(patient);
         } else {
             return res.status(404).json('No patient found!');
@@ -121,6 +114,6 @@ async function deleteById(req, res, next) {
             return res.status(404).json('No patient found!');
         }
     }).catch(err => {
-        return res.status(500).json(err);
+        return res.status(500).json('There is some internal error: ' + err);
     });
 }

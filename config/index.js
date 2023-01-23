@@ -1,6 +1,5 @@
 const redisClientHandler = require('./REDIS');
-const jwtHandler = require('./JWT');
-const sqsHandler = require('./SQS');
+const SQS = require('./SQS');
 
 
-module.exports = { redisClientHandler, jwtHandler, sqsHandler };
+module.exports = { redisClientHandler, SQS };

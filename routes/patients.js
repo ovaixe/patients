@@ -1,5 +1,5 @@
 const express = require('express');
-const { jwtHandler } = require('../config');
+const { jwtHandler } = require('../helpers');
 const patientController = require('../controllers/patients');
 
 const {getAll, getById, getByWalletAmount, create, updateById, deleteById} = patientController;
